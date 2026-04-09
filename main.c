@@ -1,25 +1,31 @@
-#include "stm32f407xx.h"
-#include "led.h"
-
-static void delay(volatile uint32_t count)
-{
-    while (count--)
-    {
-        __NOP();
-    }
-}
+#include "stm32f4xx.h"
+#include "sys.h"
+#include "beep.h"
+#include "delay.h"
 
 int main(void)
 {
-    led_init();
+    sys_clock_init();   /* 必须最先调用，切换到 168MHz */
+    delay_init();
+    beep_init();
 
     while (1)
     {
-        led_on(LED0);
-        delay(2000000);
-        led_off(LED0);
-        led_on(LED1);
-        delay(2000000);
-        led_off(LED1);
+        /* 测试 beep_on / beep_off */
+        beep_on();
+        delay_ms(2000);
+        beep_off();
+        delay_ms(2000);
+
+        /* 测试 beep_toggle：蜂鸣器间隔 1s 连续切换 6 次 */
+        for (int i = 0; i < 6; i++)
+        {
+            beep_toggle();
+            delay_ms(1000);
+        }
+
+        /* 确保循环结束后蜂鸣器处于关闭状态 */
+        beep_off();
+        delay_ms(2000);
     }
 }

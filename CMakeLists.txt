@@ -27,12 +27,18 @@ add_executable(${PROJECT_NAME}
     main.c
     core/src/system_stm32f4xx.c
     peripherals/led/led.c
+    peripherals/beep/beep.c
+    peripherals/delay/delay.c
+    peripherals/sys/sys.c
     startup/startup_stm32f407xx.s
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE
     core/inc
     peripherals/led
+    peripherals/beep
+    peripherals/delay
+    peripherals/sys
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE
