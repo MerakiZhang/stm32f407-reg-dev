@@ -30,7 +30,7 @@ void sys_clock_init(void)
     RCC->CFGR |= RCC_CFGR_PPRE1_DIV4;   /* APB1 = AHB / 4    */
     RCC->CFGR |= RCC_CFGR_PPRE2_DIV2;   /* APB2 = AHB / 2    */
 
-    /* 4. 配置 PLL：时钟源 HSE，PLLM=25，PLLN=336，PLLP=2，PLLQ=7 */
+    /* 4. 配置 PLL：时钟源 HSE，PLLM=8，PLLN=336，PLLP=2，PLLQ=7 */
     RCC->PLLCFGR = (8U  <<  0) |         /* PLLM = 8 */
                    (336U <<  6) |         /* PLLN = 336 */
                    (0U  << 16) |         /* PLLP = 2（00 表示 2） */
