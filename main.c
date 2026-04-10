@@ -1,31 +1,49 @@
 #include "stm32f4xx.h"
 #include "sys.h"
-#include "beep.h"
 #include "delay.h"
+#include "led.h"
+#include "beep.h"
+#include "key.h"
+
+/*
+ * 按键测试：
+ *   KEY_UP → LED0、LED1 同时翻转
+ *   KEY0   → LED0 翻转
+ *   KEY1   → LED1 翻转
+ *   KEY2   → 蜂鸣器翻转
+ */
 
 int main(void)
 {
-    sys_clock_init();   /* 必须最先调用，切换到 168MHz */
+    sys_clock_init();
     delay_init();
+    led_init();
     beep_init();
+    key_init();
 
     while (1)
     {
-        /* 测试 beep_on / beep_off */
-        beep_on();
-        delay_ms(2000);
-        beep_off();
-        delay_ms(2000);
+        uint8_t key = key_scan(0);
 
-        /* 测试 beep_toggle：蜂鸣器间隔 1s 连续切换 6 次 */
-        for (int i = 0; i < 6; i++)
+        switch (key)
         {
-            beep_toggle();
-            delay_ms(1000);
+            case KEY_UP_VAL:
+                led_toggle(LED0);
+                led_toggle(LED1);
+                break;
+            case KEY0_VAL:
+                led_toggle(LED0);
+                break;
+            case KEY1_VAL:
+                led_toggle(LED1);
+                break;
+            case KEY2_VAL:
+                beep_toggle();
+                break;
+            default:
+                break;
         }
 
-        /* 确保循环结束后蜂鸣器处于关闭状态 */
-        beep_off();
-        delay_ms(2000);
+        delay_ms(10);
     }
 }

@@ -30,6 +30,7 @@ add_executable(${PROJECT_NAME}
     peripherals/beep/beep.c
     peripherals/delay/delay.c
     peripherals/sys/sys.c
+    peripherals/key/key.c
     startup/startup_stm32f407xx.s
 )
 
@@ -39,6 +40,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     peripherals/beep
     peripherals/delay
     peripherals/sys
+    peripherals/key
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE
