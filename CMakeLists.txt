@@ -31,6 +31,7 @@ add_executable(${PROJECT_NAME}
     peripherals/delay/delay.c
     peripherals/sys/sys.c
     peripherals/key/key.c
+    peripherals/exti/exti.c
     startup/startup_stm32f407xx.s
 )
 
@@ -41,6 +42,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     peripherals/delay
     peripherals/sys
     peripherals/key
+    peripherals/exti
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE

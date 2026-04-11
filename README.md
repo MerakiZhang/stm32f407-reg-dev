@@ -43,7 +43,8 @@ stm32f407-reg-dev/
     ├── delay/                    # SysTick 毫秒延时
     ├── led/                      # LED 驱动
     ├── beep/                     # 蜂鸣器驱动
-    └── key/                      # 按键驱动
+    ├── key/                      # 按键驱动（轮询）
+    └── exti/                     # 外部中断驱动
 ```
 
 ## 外设驱动
@@ -64,7 +65,13 @@ HSE 8MHz 经 PLL 倍频配置系统时钟为 168MHz。
 
 ### delay — SysTick 延时
 
-基于 SysTick 定时器，每 1ms 中断一次，提供 `delay_ms()` 毫秒阻塞延时。
+基于 SysTick 定时器，每 1ms 中断一次，提供毫秒阻塞延时和计数读取。
+
+```c
+delay_init();
+delay_ms(100);
+uint32_t t = delay_get_tick();   // 获取当前毫秒计数，供 ISR 消抖使用
+```
 
 ### led — LED 驱动
 
@@ -108,6 +115,29 @@ uint8_t key = key_scan(0);   // 0: 单次触发，1: 连续触发
 ```
 
 返回值：`KEY_UP_VAL` / `KEY0_VAL` / `KEY1_VAL` / `KEY2_VAL` / `0`（无按键）
+
+### exti — 外部中断按键
+
+将按键引脚配置为 EXTI 外部中断，按下时由硬件触发 ISR，主循环只需检查标志位，无需持续轮询。ISR 内采用时间戳消抖（20ms），并重读引脚电平确认按下状态。
+
+| 标识   | 引脚 | EXTI 线 | 触发方式 |
+|--------|------|---------|----------|
+| KEY_UP | PA0  | EXTI0   | 双沿，高电平有效 |
+| KEY0   | PE4  | EXTI4   | 双沿，低电平有效 |
+| KEY1   | PE3  | EXTI3   | 双沿，低电平有效 |
+| KEY2   | PE2  | EXTI2   | 双沿，低电平有效 |
+
+```c
+exti_key_init();
+
+// 主循环中检查标志位
+if (exti_key0_flag) {
+    exti_key0_flag = 0;
+    // 处理 KEY0
+}
+```
+
+标志位：`exti_key_up_flag` / `exti_key0_flag` / `exti_key1_flag` / `exti_key2_flag`
 
 ## 构建方法
 

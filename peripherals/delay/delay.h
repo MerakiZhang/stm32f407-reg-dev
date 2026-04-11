@@ -3,7 +3,8 @@
 
 #include "stm32f4xx.h"
 
-void delay_init(void);
-void delay_ms(uint32_t ms);
+void     delay_init(void);
+void     delay_ms(uint32_t ms);
+uint32_t delay_get_tick(void);
 
 #endif /* __DELAY_H */
