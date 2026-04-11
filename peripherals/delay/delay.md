@@ -111,3 +111,22 @@ void delay_ms(uint32_t ms)
 ### delay_ms(uint32_t ms)
 
 毫秒延时函数。传入需要延时的毫秒数，记录当前 `systick_ms` 值后阻塞等待，直到 `systick_ms` 累加差值达到目标值后返回。
+
+### delay_get_tick(void)
+
+获取当前毫秒计数值。返回自 `delay_init` 调用以来的毫秒累计数（`uint32_t`，约 49 天溢出后回绕）。
+
+由于 `systick_ms` 在 `delay.c` 内以 `static` 修饰，外部模块不能直接访问，该函数提供唯一的合法读取途径。主要用于需要时间戳的场景，例如中断服务函数中做消抖判断：
+
+```c
+static uint32_t last_tick = 0;
+uint32_t now = delay_get_tick();
+
+if ((now - last_tick) >= 20U)   /* 两次触发间隔 >= 20ms 才认为有效 */
+{
+    last_tick = now;
+    /* 处理事件 */
+}
+```
+
+> 在 ISR 中只能使用此函数，不能调用 `delay_ms`。`delay_ms` 依赖 SysTick 中断累加 `systick_ms`，而在 ISR 内调用会因中断嵌套优先级问题导致永久阻塞。
