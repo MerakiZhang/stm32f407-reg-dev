@@ -44,7 +44,8 @@ stm32f407-reg-dev/
     ├── led/                      # LED 驱动
     ├── beep/                     # 蜂鸣器驱动
     ├── key/                      # 按键驱动（轮询）
-    └── exti/                     # 外部中断驱动
+    ├── exti/                     # 外部中断驱动
+    └── timer/                    # 通用定时器驱动
 ```
 
 ## 外设驱动
@@ -138,6 +139,29 @@ if (exti_key0_flag) {
 ```
 
 标志位：`exti_key_up_flag` / `exti_key0_flag` / `exti_key1_flag` / `exti_key2_flag`
+
+### timer — 通用定时器
+
+使用 TIM3 产生周期性更新中断。TIM3 时钟 = 84MHz（2 × APB1），通过 PSC 和 ARR 设定中断周期。
+
+```
+T = (PSC + 1) × (ARR + 1) / 84MHz
+```
+
+```c
+timer3_init(8399, 4999);   /* 500ms 中断周期 */
+```
+
+主循环检查标志位：
+
+```c
+if (timer3_flag) {
+    timer3_flag = 0;
+    // 执行定时任务
+}
+```
+
+标志位：`timer3_flag`
 
 ## 构建方法
 

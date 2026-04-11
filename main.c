@@ -4,15 +4,17 @@
 #include "led.h"
 #include "beep.h"
 #include "exti.h"
+#include "timer.h"
 
 /*
- * 外部中断按键测试：
+ * 通用定时器测试：
+ *   TIM3 每 500ms 产生更新中断，LED0 翻转（1Hz 闪烁）
+ *
+ * EXTI 按键测试（与定时器并行运行）：
  *   KEY_UP (PA0) → LED0、LED1 同时翻转
  *   KEY0   (PE4) → LED0 翻转
  *   KEY1   (PE3) → LED1 翻转
  *   KEY2   (PE2) → 蜂鸣器翻转
- *
- * 按键事件由 EXTI 中断驱动，主循环只检查标志位，无需轮询。
  */
 
 int main(void)
@@ -22,9 +24,16 @@ int main(void)
     led_init();
     beep_init();
     exti_key_init();
+    timer3_init(8399, 4999);   /* 84MHz / 8400 / 5000 = 2Hz → 每 500ms 中断一次 */
 
     while (1)
     {
+        if (timer3_flag)
+        {
+            timer3_flag = 0;
+            led_toggle(LED0);
+        }
+
         if (exti_key_up_flag)
         {
             exti_key_up_flag = 0;
