@@ -45,7 +45,8 @@ stm32f407-reg-dev/
     ├── beep/                     # 蜂鸣器驱动
     ├── key/                      # 按键驱动（轮询）
     ├── exti/                     # 外部中断驱动
-    └── timer/                    # 通用定时器驱动
+    ├── timer/                    # 通用定时器驱动
+    └── pwm/                      # PWM 输出驱动（TIM14）
 ```
 
 ## 外设驱动
@@ -162,6 +163,29 @@ if (timer3_flag) {
 ```
 
 标志位：`timer3_flag`
+
+### pwm — PWM 输出（LED0 亮度控制）
+
+使用 TIM14_CH1 在 PF9（LED0）上输出硬件 PWM，无需 ISR，直接操作 CCR1 寄存器调节占空比。
+
+| 参数 | 值 | 说明 |
+|------|----|------|
+| 引脚 | PF9 (AF9) | TIM14_CH1 复用 |
+| PWM 频率 | 1kHz | PSC=83，ARR=999，TIM14 时钟 84MHz |
+| 分辨率 | 100 级 | duty 0（灭）~ 100（全亮） |
+
+```c
+pwm_init();
+pwm_set_duty(50);    /* 半亮 */
+pwm_set_duty(100);   /* 全亮 */
+```
+
+呼吸灯示例（渐亮渐暗，2s 一周期）：
+
+```c
+for (uint8_t d = 0; d <= 100; d++) { pwm_set_duty(d);         delay_ms(10); }
+for (int16_t d = 99; d >= 0; d--) { pwm_set_duty((uint8_t)d); delay_ms(10); }
+```
 
 ## 构建方法
 

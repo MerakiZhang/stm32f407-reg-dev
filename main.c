@@ -1,62 +1,33 @@
 #include "stm32f4xx.h"
 #include "sys.h"
 #include "delay.h"
-#include "led.h"
-#include "beep.h"
-#include "exti.h"
-#include "timer.h"
+#include "pwm.h"
 
 /*
- * 通用定时器测试：
- *   TIM3 每 500ms 产生更新中断，LED0 翻转（1Hz 闪烁）
- *
- * EXTI 按键测试（与定时器并行运行）：
- *   KEY_UP (PA0) → LED0、LED1 同时翻转
- *   KEY0   (PE4) → LED0 翻转
- *   KEY1   (PE3) → LED1 翻转
- *   KEY2   (PE2) → 蜂鸣器翻转
+ * PWM 呼吸灯测试：
+ *   LED0 (PF9) — TIM14_CH1 硬件 PWM，亮度在 0~100 之间平滑渐变
+ *   每步 10ms，渐亮 101 步 + 渐暗 99 步 = 200 步 × 10ms = 2s 一个周期
  */
 
 int main(void)
 {
     sys_clock_init();
     delay_init();
-    led_init();
-    beep_init();
-    exti_key_init();
-    timer3_init(8399, 4999);   /* 84MHz / 8400 / 5000 = 2Hz → 每 500ms 中断一次 */
+    pwm_init();
 
     while (1)
     {
-        if (timer3_flag)
+        /* 渐亮：0 → 100 */
+        for (uint8_t d = 0; d <= 100; d++)
         {
-            timer3_flag = 0;
-            led_toggle(LED0);
+            pwm_set_duty(d);
+            delay_ms(10);
         }
-
-        if (exti_key_up_flag)
+        /* 渐暗：99 → 0 */
+        for (int16_t d = 99; d >= 0; d--)
         {
-            exti_key_up_flag = 0;
-            led_toggle(LED0);
-            led_toggle(LED1);
-        }
-
-        if (exti_key0_flag)
-        {
-            exti_key0_flag = 0;
-            led_toggle(LED0);
-        }
-
-        if (exti_key1_flag)
-        {
-            exti_key1_flag = 0;
-            led_toggle(LED1);
-        }
-
-        if (exti_key2_flag)
-        {
-            exti_key2_flag = 0;
-            beep_toggle();
+            pwm_set_duty((uint8_t)d);
+            delay_ms(10);
         }
     }
 }
