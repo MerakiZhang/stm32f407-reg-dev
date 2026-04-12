@@ -1,99 +1,67 @@
 #include "stm32f4xx.h"
 #include "sys.h"
 #include "delay.h"
-#include "led.h"
-#include "beep.h"
 #include "key.h"
+#include "pwm.h"
 #include "uart.h"
-#include "iwdg.h"
+#include "timer.h"
+#include <stdio.h>
 
 /*
- * 按键 → 发送字符（通知 PC）：
- *   KEY_UP → 'a'
- *   KEY0   → 'b'
- *   KEY1   → 'c'
- *   KEY2   → 'd'
+ * 功能：
+ *   1. LED0（PF9）呼吸灯 —— TIM14 PWM，占空比 0→100→0 循环渐变，非阻塞
+ *      单程 100 步 × 20ms = 2s，完整一个呼吸周期约 4s
  *
- * PC 发送字符 → 控制外设：
- *   'a' → LED0  切换
- *   'b' → LED1  切换
- *   'c' → BEEP  切换
- *   'd' → LED0 / LED1 / BEEP 全部关闭
+ *   2. KEY_UP（PA0）高电平脉宽检测 —— TIM5 输入捕获
+ *      上升沿记录起始，下降沿计算差值，精度 1µs，量程约 4295s
  *
- * IWDG 超时 1000ms，主循环每次迭代开始时喂狗。
- * key_scan 消抖约 10ms，远小于看门狗超时时间。
+ *   3. 检测结果通过 USART1（PA9/PA10，115200 bps）发送到 PC
+ *
+ * 初始化顺序：
+ *   key_init()    先配置 PA0 内部下拉（GPIO 输入）
+ *   tim5ic_init() 后将 PA0 切换为 AF2（TIM5_CH1），下拉保留
  */
 
 int main(void)
 {
     sys_clock_init();
     delay_init();
-    led_init();
-    beep_init();
-    key_init();
+    key_init();        /* 配置 PA0 内部下拉，供 tim5ic_init() 依赖 */
+    pwm_init();        /* TIM14 PWM → LED0 呼吸灯 */
     uart1_init(115200);
-    iwdg_init(1000);   /* 启动独立看门狗，超时 1000ms */
+    tim5ic_init();     /* TIM5 输入捕获 → KEY_UP 脉宽，须在 key_init() 后调用 */
 
-    uart1_send_string("STM32 ready. Press KEY to send / send a-d to control.\r\n");
+    uart1_send_string("=== STM32F407 Ready ===\r\n");
+    uart1_send_string("LED0: breathing | Hold KEY_UP and release to see pulse width\r\n");
+
+    uint8_t  breath_duty = 0;
+    int8_t   breath_dir  = 1;
+    uint32_t breath_tick = 0;
 
     while (1)
     {
-        iwdg_feed();   /* 喂狗：每次主循环开始时重载计数器 */
-
         /* ------------------------------------------------
-         * 1. 按键扫描 → 发送字符到 PC
-         *    key_scan 内部消抖 10ms（阻塞），期间 UART RX
-         *    中断照常工作，数据存入环形缓冲区不丢失。
+         * 1. LED0 呼吸灯（非阻塞，每 20ms 更新一次占空比）
          * ------------------------------------------------ */
-        uint8_t key = key_scan(0);
-        switch (key)
+        if (delay_get_tick() - breath_tick >= 20U)
         {
-            case KEY_UP_VAL:
-                uart1_send_string("a\r\n");
-                break;
-            case KEY0_VAL:
-                uart1_send_string("b\r\n");
-                break;
-            case KEY1_VAL:
-                uart1_send_string("c\r\n");
-                break;
-            case KEY2_VAL:
-                uart1_send_string("d\r\n");
-                break;
-            default:
-                break;
+            breath_tick = delay_get_tick();
+            if (breath_duty == 100) breath_dir = -1;
+            if (breath_duty == 0)   breath_dir =  1;
+            breath_duty = (uint8_t)(breath_duty + breath_dir);
+            pwm_set_duty(breath_duty);
         }
 
         /* ------------------------------------------------
-         * 2. 接收 PC 发来的字符 → 控制 LED / BEEP
-         *    uart1_recv_byte 非阻塞，有数据立即处理。
+         * 2. TIM5 脉宽就绪 → 串口打印
          * ------------------------------------------------ */
-        uint8_t ch;
-        while (uart1_recv_byte(&ch))
+        if (tim5_pulse_ready)
         {
-            switch (ch)
-            {
-                case 'a':
-                    led_toggle(LED0);
-                    uart1_send_string("LED0 toggled\r\n");
-                    break;
-                case 'b':
-                    led_toggle(LED1);
-                    uart1_send_string("LED1 toggled\r\n");
-                    break;
-                case 'c':
-                    beep_toggle();
-                    uart1_send_string("BEEP toggled\r\n");
-                    break;
-                case 'd':
-                    led_off(LED0);
-                    led_off(LED1);
-                    beep_off();
-                    uart1_send_string("All off\r\n");
-                    break;
-                default:
-                    break;
-            }
+            tim5_pulse_ready = 0;
+            char buf[48];
+            snprintf(buf, sizeof(buf), "KEY_UP held: %lu us\r\n",
+                     (unsigned long)tim5_pulse_us);
+            uart1_send_string(buf);
         }
     }
 }

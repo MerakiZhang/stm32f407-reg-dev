@@ -89,7 +89,7 @@ stm32f407-reg-dev/
     ├── beep/                     # 蜂鸣器驱动
     ├── key/                      # 按键驱动（轮询）
     ├── exti/                     # 外部中断驱动
-    ├── timer/                    # 通用定时器驱动
+    ├── timer/                    # 通用定时器驱动（TIM3 更新中断 / TIM5 输入捕获）
     ├── pwm/                      # PWM 输出驱动（TIM14）
     ├── uart/                     # 串口通信驱动（USART1）
     └── iwdg/                     # 独立看门狗驱动（IWDG）
@@ -187,9 +187,11 @@ if (exti_key0_flag) {
 
 标志位：`exti_key_up_flag` / `exti_key0_flag` / `exti_key1_flag` / `exti_key2_flag`
 
-### timer — 通用定时器
+### timer — 通用定时器（TIM3 更新中断 + TIM5 输入捕获）
 
-使用 TIM3 产生周期性更新中断。TIM3 时钟 = 84MHz（2 × APB1），通过 PSC 和 ARR 设定中断周期。
+#### TIM3 — 周期性更新中断
+
+TIM3 时钟 = 84MHz（2 × APB1），通过 PSC 和 ARR 设定中断周期。
 
 ```
 T = (PSC + 1) × (ARR + 1) / 84MHz
@@ -209,6 +211,30 @@ if (timer3_flag) {
 ```
 
 标志位：`timer3_flag`
+
+#### TIM5 — PA0 高电平脉宽输入捕获
+
+使用 TIM5_CH1（PA0，AF2）测量 KEY_UP 按键高电平持续时间，精度 1µs，量程约 4295 秒。
+
+| 参数 | 值 | 说明 |
+|------|----|------|
+| 引脚 | PA0 (AF2) | TIM5_CH1 |
+| 计数频率 | 1MHz | PSC=83，TIM5 时钟 84MHz |
+| 精度 | 1µs / tick | |
+| 量程 | ~4295s | 32 位计数器 |
+
+```c
+key_init();      /* 配置 PA0 内部下拉（须先调用） */
+tim5ic_init();   /* 启动 TIM5 输入捕获 */
+
+// 主循环中轮询结果
+if (tim5_pulse_ready) {
+    tim5_pulse_ready = 0;
+    uint32_t us = tim5_pulse_us;   /* 脉宽，单位 µs */
+}
+```
+
+变量：`tim5_pulse_us`（脉宽结果）/ `tim5_pulse_ready`（新数据就绪标志，读后手动清零）
 
 ### pwm — PWM 输出（LED0 亮度控制）
 
@@ -314,5 +340,7 @@ cmake --build build/release
 ```c
 sys_clock_init();   // 必须最先调用，切换系统时钟到 168MHz
 delay_init();       // 依赖 SystemCoreClock，必须在 sys_clock_init 之后
-// 其他外设初始化...
+key_init();         // 配置 PA0 内部下拉，须在 tim5ic_init() 之前
+tim5ic_init();      // 将 PA0 切换为 AF2（TIM5_CH1），下拉由 key_init() 保留
+// 其他外设初始化无严格顺序...
 ```
