@@ -12,8 +12,8 @@
 
 | 项目 | 值 |
 |------|----|
-| TX 引脚 | PA9，复用 AF7（USART1_TX） |
-| RX 引脚 | PA10，复用 AF7（USART1_RX） |
+| TX 引脚 | PA9，复用 AF7（USART1_TX），推挽，高速，无上下拉 |
+| RX 引脚 | PA10，复用 AF7（USART1_RX），内部上拉 |
 | USART1 时钟 | APB2 = 84MHz |
 | GPIOA 时钟 | RCC->AHB1ENR bit0 |
 | USART1 时钟使能 | RCC->APB2ENR bit4 |

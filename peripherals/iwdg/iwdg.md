@@ -82,7 +82,7 @@ T(ms) = (RLR + 1) × prescaler / 32
 void iwdg_init(uint32_t timeout_ms);
 ```
 初始化并启动 IWDG。自动根据 `timeout_ms` 选择最小预分频（使 RLR 不超过 4095）。  
-有效范围约 `1 ~ 32760 ms`，超出范围自动截断为最大超时。
+有效范围约 `1 ~ 32768 ms`（PR=6/÷256，RLR=4095：4096×256/32000×1000=32768 ms），超出范围自动截断为最大超时。
 
 ```c
 void iwdg_feed(void);

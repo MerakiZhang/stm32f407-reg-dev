@@ -147,3 +147,123 @@ void TIM5_IRQHandler(void)
         }
     }
 }
+
+/* ============================================================
+ * TIM2 电容按键检测：PA5（TIM2_CH1，AF1）
+ *
+ * 检测原理（充放电时间测量法）：
+ *   电容按键 + 外部上拉电阻（3.3V）构成 RC 充电回路。
+ *   每次检测执行以下步骤：
+ *     1. PA5 → 输出低电平，持续 TIM2_DISCHARGE_US，将电容完全放电
+ *     2. PA5 → AF1（TIM2_CH1），外部上拉开始对电容充电
+ *     3. TIM2 输入捕获 PA5 上升沿，CCR1 = 充电时间（µs）
+ *   手指触摸时并联体表电容，等效电容增大，充电时间变长：
+ *     充电时间 > 基线（无触摸均值）+ 阈值  →  判定为触摸
+ *
+ * 初始化时自动校准基线（须在无触摸状态下调用 tim2cap_init）。
+ *
+ * 参数调整：
+ *   TIM2_DISCHARGE_US  — 放电时长，应确保完全放电（与 RC 有关）
+ *   TIM2_TIMEOUT_US    — 等待上升沿超时，取决于最大 RC 时间常数
+ *   TIM2_CAP_THRESHOLD — 触摸判定阈值，根据实际硬件调试确定
+ *
+ * 硬件：PA5，外部上拉至 3.3V（PUPDR 配置为浮空）
+ *       TIM2 时钟 84MHz，PSC=83 → 1MHz（1 µs/tick），轮询无中断
+ * ============================================================ */
+
+#define TIM2_DISCHARGE_US    50U    /* 放电时长（µs） */
+#define TIM2_TIMEOUT_US     500U    /* 等待上升沿超时（µs） */
+#define TIM2_CAP_THRESHOLD   20U    /* 触摸判定阈值（µs） */
+#define TIM2_CAL_SAMPLES     16U    /* 基线校准采样次数 */
+
+static uint32_t  tim2_baseline  = 0;
+volatile uint8_t tim2_cap_state = 0;   /* 0=未触摸，1=已触摸 */
+
+/* 单次充放电测量，返回充电时间（µs），超时返回 TIM2_TIMEOUT_US */
+static uint32_t tim2cap_measure_once(void)
+{
+    /* 1. PA5 → 推挽输出，拉低放电 */
+    GPIOA->MODER &= ~(3U << (5 * 2));
+    GPIOA->MODER |=  (1U << (5 * 2));    /* 输出模式 */
+    GPIOA->BSRR   =  (1U << (5 + 16));   /* PA5 = 0，放电 */
+
+    /* 2. 等待放电完成（利用 TIM2->CNT 计 µs） */
+    uint32_t t = TIM2->CNT;
+    while ((TIM2->CNT - t) < TIM2_DISCHARGE_US)
+        ;
+
+    /* 3. 复位计数器，清除捕获标志 */
+    TIM2->CNT = 0;
+    TIM2->SR  = 0;
+
+    /* 4. PA5 → AF1（TIM2_CH1），上拉电阻开始对电容充电 */
+    GPIOA->MODER &= ~(3U << (5 * 2));
+    GPIOA->MODER |=  (2U << (5 * 2));    /* 复用功能，AFR 已在 init 设定 */
+
+    /* 5. 等待 TIM2 捕获上升沿（CC1IF），含超时保护 */
+    while (!(TIM2->SR & (1U << 1)))
+    {
+        if (TIM2->CNT >= TIM2_TIMEOUT_US)
+            return TIM2_TIMEOUT_US;       /* 超时（上拉未接或阻值过大） */
+    }
+
+    return TIM2->CCR1;                    /* 充电时间（µs） */
+}
+
+void tim2cap_init(void)
+{
+    /* 1. 使能 GPIOA 和 TIM2 时钟 */
+    RCC->AHB1ENR |= (1U << 0);    /* GPIOAEN */
+    RCC->APB1ENR |= (1U << 0);    /* TIM2EN  */
+
+    /* 2. PA5 → AF1（TIM2_CH1）：初始设为 AF 模式，measure_once 内动态切换 */
+    GPIOA->MODER  &= ~(3U << (5 * 2));
+    GPIOA->MODER  |=  (2U << (5 * 2));   /* 10: AF 模式 */
+    GPIOA->AFR[0] &= ~(0xFU << (5 * 4));
+    GPIOA->AFR[0] |=  (1U   << (5 * 4)); /* AF1 = TIM2_CH1 */
+
+    /* 3. 外部上拉已提供，PUPDR 设为浮空（00） */
+    GPIOA->PUPDR &= ~(3U << (5 * 2));
+
+    /* 4. 预分频：84 MHz / 84 = 1 MHz（1 µs/tick） */
+    TIM2->PSC = 83;
+
+    /* 5. 自动重载：32 位最大值 */
+    TIM2->ARR = 0xFFFFFFFFU;
+
+    /* 6. CH1 输入捕获：CC1S=01（IC1→TI1），上升沿，无滤波，无分频 */
+    TIM2->CCMR1 &= ~(0xFFU);
+    TIM2->CCMR1 |=  (1U << 0);                   /* CC1S[1:0] = 01 */
+    TIM2->CCER  &= ~((1U << 1) | (1U << 3));     /* CC1P=0, CC1NP=0 → 上升沿 */
+    TIM2->CCER  |=  (1U << 0);                   /* CC1E = 1，使能捕获 */
+
+    /* 7. 轮询方式，不使用捕获中断 */
+    TIM2->DIER = 0;
+
+    /* 8. 产生更新事件装载影子寄存器，清除标志 */
+    TIM2->EGR = (1U << 0);
+    TIM2->SR  = 0;
+
+    /* 9. 启动计数器（measure_once 使用 CNT 计时，须先启动） */
+    TIM2->CR1 |= (1U << 0);
+
+    /* 10. 基线校准：连续采样 TIM2_CAL_SAMPLES 次，取平均 */
+    uint32_t sum = 0;
+    for (uint8_t i = 0; i < TIM2_CAL_SAMPLES; i++)
+    {
+        sum += tim2cap_measure_once();
+        /* 两次采样间隔约 200µs，避免连续放电干扰 */
+        uint32_t tw = TIM2->CNT;
+        while ((TIM2->CNT - tw) < 200U)
+            ;
+    }
+    tim2_baseline  = sum / TIM2_CAL_SAMPLES;
+    tim2_cap_state = 0;
+}
+
+uint8_t tim2cap_scan(void)
+{
+    uint32_t charge_time = tim2cap_measure_once();
+    tim2_cap_state = (charge_time > tim2_baseline + TIM2_CAP_THRESHOLD) ? 1U : 0U;
+    return tim2_cap_state;
+}
