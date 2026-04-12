@@ -34,6 +34,7 @@ add_executable(${PROJECT_NAME}
     peripherals/exti/exti.c
     peripherals/timer/timer.c
     peripherals/pwm/pwm.c
+    peripherals/uart/uart.c
     startup/startup_stm32f407xx.s
 )
 
@@ -47,6 +48,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     peripherals/exti
     peripherals/timer
     peripherals/pwm
+    peripherals/uart
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE

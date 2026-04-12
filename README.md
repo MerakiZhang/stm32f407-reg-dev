@@ -90,7 +90,8 @@ stm32f407-reg-dev/
     ├── key/                      # 按键驱动（轮询）
     ├── exti/                     # 外部中断驱动
     ├── timer/                    # 通用定时器驱动
-    └── pwm/                      # PWM 输出驱动（TIM14）
+    ├── pwm/                      # PWM 输出驱动（TIM14）
+    └── uart/                     # 串口通信驱动（USART1）
 ```
 
 ## 外设驱动
@@ -230,6 +231,41 @@ pwm_set_duty(100);   /* 全亮 */
 for (uint8_t d = 0; d <= 100; d++) { pwm_set_duty(d);         delay_ms(10); }
 for (int16_t d = 99; d >= 0; d--) { pwm_set_duty((uint8_t)d); delay_ms(10); }
 ```
+
+### uart — 串口通信（USART1）
+
+使用 USART1 提供串口收发，TX 轮询发送，RX 中断接收，并将 `printf` 重定向至串口。
+
+| 参数 | 值 | 说明 |
+|------|----|------|
+| TX 引脚 | PA9 (AF7) | USART1_TX |
+| RX 引脚 | PA10 (AF7) | USART1_RX |
+| 时钟来源 | APB2 = 84MHz | |
+| 默认配置 | 8-N-1 | 无硬件流控 |
+
+```c
+uart1_init(115200);
+
+/* 发送 */
+uart1_send_byte(0xA5);
+uart1_send_string("Hello, STM32!\r\n");
+uart1_send_buf(buf, len);             /* 发送任意字节数组 */
+printf("tick = %lu\r\n", delay_get_tick());   /* printf 重定向至串口 */
+
+/* 接收（非阻塞） */
+uint8_t ch;
+if (uart1_recv_byte(&ch)) {
+    /* 处理收到的字节 ch */
+}
+
+/* 批量读取 */
+while (uart1_recv_available()) {
+    uart1_recv_byte(&ch);
+    /* 处理 ch */
+}
+```
+
+RX 采用环形缓冲区（`UART1_RX_BUF_SIZE` = 64 字节），中断自动填充；缓冲区满时丢弃新数据，已有数据不会被覆盖。
 
 ## 构建方法
 

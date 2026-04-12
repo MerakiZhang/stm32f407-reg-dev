@@ -1,33 +1,92 @@
 #include "stm32f4xx.h"
 #include "sys.h"
 #include "delay.h"
-#include "pwm.h"
+#include "led.h"
+#include "beep.h"
+#include "key.h"
+#include "uart.h"
 
 /*
- * PWM 呼吸灯测试：
- *   LED0 (PF9) — TIM14_CH1 硬件 PWM，亮度在 0~100 之间平滑渐变
- *   每步 10ms，渐亮 101 步 + 渐暗 99 步 = 200 步 × 10ms = 2s 一个周期
+ * 按键 → 发送字符（通知 PC）：
+ *   KEY_UP → 'a'
+ *   KEY0   → 'b'
+ *   KEY1   → 'c'
+ *   KEY2   → 'd'
+ *
+ * PC 发送字符 → 控制外设：
+ *   'a' → LED0  切换
+ *   'b' → LED1  切换
+ *   'c' → BEEP  切换
+ *   'd' → LED0 / LED1 / BEEP 全部关闭
  */
 
 int main(void)
 {
     sys_clock_init();
     delay_init();
-    pwm_init();
+    led_init();
+    beep_init();
+    key_init();
+    uart1_init(115200);
+
+    uart1_send_string("STM32 ready. Press KEY to send / send a-d to control.\r\n");
 
     while (1)
     {
-        /* 渐亮：0 → 100 */
-        for (uint8_t d = 0; d <= 100; d++)
+        /* ------------------------------------------------
+         * 1. 按键扫描 → 发送字符到 PC
+         *    key_scan 内部消抖 10ms（阻塞），期间 UART RX
+         *    中断照常工作，数据存入环形缓冲区不丢失。
+         * ------------------------------------------------ */
+        uint8_t key = key_scan(0);
+        switch (key)
         {
-            pwm_set_duty(d);
-            delay_ms(10);
+            case KEY_UP_VAL:
+                uart1_send_string("a\r\n");
+                break;
+            case KEY0_VAL:
+                uart1_send_string("b\r\n");
+                break;
+            case KEY1_VAL:
+                uart1_send_string("c\r\n");
+                break;
+            case KEY2_VAL:
+                uart1_send_string("d\r\n");
+                break;
+            default:
+                break;
         }
-        /* 渐暗：99 → 0 */
-        for (int16_t d = 99; d >= 0; d--)
+
+        /* ------------------------------------------------
+         * 2. 接收 PC 发来的字符 → 控制 LED / BEEP
+         *    uart1_recv_byte 非阻塞，有数据立即处理。
+         * ------------------------------------------------ */
+        uint8_t ch;
+        while (uart1_recv_byte(&ch))
         {
-            pwm_set_duty((uint8_t)d);
-            delay_ms(10);
+            switch (ch)
+            {
+                case 'a':
+                    led_toggle(LED0);
+                    uart1_send_string("LED0 toggled\r\n");
+                    break;
+                case 'b':
+                    led_toggle(LED1);
+                    uart1_send_string("LED1 toggled\r\n");
+                    break;
+                case 'c':
+                    beep_toggle();
+                    uart1_send_string("BEEP toggled\r\n");
+                    break;
+                case 'd':
+                    led_off(LED0);
+                    led_off(LED1);
+                    beep_off();
+                    uart1_send_string("All off\r\n");
+                    break;
+                default:
+                    break;
+            }
         }
     }
 }
