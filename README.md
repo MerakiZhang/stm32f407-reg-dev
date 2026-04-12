@@ -91,7 +91,8 @@ stm32f407-reg-dev/
     ├── exti/                     # 外部中断驱动
     ├── timer/                    # 通用定时器驱动
     ├── pwm/                      # PWM 输出驱动（TIM14）
-    └── uart/                     # 串口通信驱动（USART1）
+    ├── uart/                     # 串口通信驱动（USART1）
+    └── iwdg/                     # 独立看门狗驱动（IWDG）
 ```
 
 ## 外设驱动
