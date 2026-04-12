@@ -5,6 +5,7 @@
 #include "beep.h"
 #include "key.h"
 #include "uart.h"
+#include "iwdg.h"
 
 /*
  * 按键 → 发送字符（通知 PC）：
@@ -18,6 +19,9 @@
  *   'b' → LED1  切换
  *   'c' → BEEP  切换
  *   'd' → LED0 / LED1 / BEEP 全部关闭
+ *
+ * IWDG 超时 1000ms，主循环每次迭代开始时喂狗。
+ * key_scan 消抖约 10ms，远小于看门狗超时时间。
  */
 
 int main(void)
@@ -28,11 +32,14 @@ int main(void)
     beep_init();
     key_init();
     uart1_init(115200);
+    iwdg_init(1000);   /* 启动独立看门狗，超时 1000ms */
 
     uart1_send_string("STM32 ready. Press KEY to send / send a-d to control.\r\n");
 
     while (1)
     {
+        iwdg_feed();   /* 喂狗：每次主循环开始时重载计数器 */
+
         /* ------------------------------------------------
          * 1. 按键扫描 → 发送字符到 PC
          *    key_scan 内部消抖 10ms（阻塞），期间 UART RX
