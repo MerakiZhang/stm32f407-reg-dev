@@ -5,6 +5,7 @@
 #include "key.h"
 #include "uart.h"
 #include "timer.h"
+#include "rng.h"
 #include <stdio.h>
 
 /*
@@ -19,6 +20,8 @@
  *   3. 电容按键（PA5）按下检测 —— TIM2 充放电时间测量
  *      按下时 LED1（PF10）点亮，松开时熄灭
  *      松开后将按压持续时间（ms）通过 USART1 发送到 PC
+ *
+ *   4. KEY0（PE4）按下 —— 硬件 RNG 产生 0~100 随机数，通过串口发送到 PC
  *
  * 初始化顺序：
  *   key_init()      先配置 PA0 内部下拉（GPIO 输入）
@@ -36,9 +39,10 @@ int main(void)
     uart1_init(115200);
     tim5ic_init();     /* TIM5 输入捕获 → KEY_UP 脉宽，须在 key_init() 后调用 */
     tim2cap_init();    /* TIM2 电容按键检测，初始化时自动校准基线（须无触摸） */
+    rng_init();        /* 硬件 RNG，使用 PLLQ 48MHz 时钟 */
 
     uart1_send_string("=== STM32F407 Ready ===\r\n");
-    uart1_send_string("LED0: breathing | KEY_UP: pulse width | CAP_KEY: LED1 + duration\r\n");
+    uart1_send_string("LED0: breathing | KEY_UP: pulse width | CAP_KEY: LED1 + duration | KEY0: random\r\n");
 
     /* ---- 呼吸灯状态 ---- */
     uint8_t  breath_duty = 0;
@@ -49,6 +53,9 @@ int main(void)
     uint8_t  prev_cap_state  = 0;
     uint32_t cap_press_tick  = 0;   /* 按下时刻（ms） */
     uint32_t cap_scan_tick   = 0;   /* 上次扫描时刻（ms） */
+
+    /* ---- KEY0 扫描时钟 ---- */
+    uint32_t key_scan_tick   = 0;
 
     while (1)
     {
@@ -103,6 +110,22 @@ int main(void)
             }
 
             prev_cap_state = cap;
+        }
+
+        /* ------------------------------------------------
+         * 4. KEY0 按下 → 硬件 RNG 产生 0~100 随机数，串口发送
+         *    每 20ms 扫描一次（key_scan 内含 10ms 消抖延时）
+         * ------------------------------------------------ */
+        if (delay_get_tick() - key_scan_tick >= 20U)
+        {
+            key_scan_tick = delay_get_tick();
+            if (key_scan(0) == KEY0_VAL)
+            {
+                uint8_t rnd = rng_get_range(100);
+                char buf[32];
+                snprintf(buf, sizeof(buf), "RNG: %u\r\n", (unsigned)rnd);
+                uart1_send_string(buf);
+            }
         }
     }
 }

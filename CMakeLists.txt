@@ -35,6 +35,7 @@ add_executable(${PROJECT_NAME}
     peripherals/timer/timer.c
     peripherals/uart/uart.c
     peripherals/iwdg/iwdg.c
+    peripherals/rng/rng.c
     startup/startup_stm32f407xx.s
 )
 
@@ -49,6 +50,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     peripherals/timer
     peripherals/uart
     peripherals/iwdg
+    peripherals/rng
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE

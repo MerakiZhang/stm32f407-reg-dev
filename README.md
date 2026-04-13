@@ -91,7 +91,8 @@ stm32f407-reg-dev/
     ├── exti/                     # 外部中断驱动
     ├── timer/                    # 通用定时器驱动（TIM3 更新中断 / TIM5 输入捕获 / TIM2 电容按键 / TIM14 PWM）
     ├── uart/                     # 串口通信驱动（USART1）
-    └── iwdg/                     # 独立看门狗驱动（IWDG）
+    ├── iwdg/                     # 独立看门狗驱动（IWDG）
+    └── rng/                      # 硬件随机数发生器驱动（RNG）
 ```
 
 ## 外设驱动
@@ -355,6 +356,23 @@ while (1) {
 DBGMCU->APB1FZ |= (1U << 12);   /* 调试暂停时冻结 IWDG 计数 */
 ```
 
+### rng — 硬件随机数发生器（RNG）
+
+使用 STM32F407 内置 TRNG，由 PLLQ 48MHz 时钟驱动，每次调用返回真随机数。
+
+| 参数 | 值 | 说明 |
+|------|----|------|
+| 时钟源 | PLLQ = 48MHz | AHB2 总线，须在 40~48MHz 之间 |
+| 输出位宽 | 32 位 | 约 40 个时钟周期产生一个新值 |
+
+```c
+rng_init();
+
+uint8_t n = rng_get_range(100);   /* 产生 [0, 100] 均匀随机整数 */
+```
+
+使用拒绝采样消除模运算偏差，保证输出均匀分布。
+
 ## 构建方法
 
 ```bash
@@ -379,5 +397,6 @@ delay_init();       // 依赖 SystemCoreClock，必须在 sys_clock_init 之后
 key_init();         // 配置 PA0 内部下拉，须在 tim5ic_init() 之前
 tim5ic_init();      // 将 PA0 切换为 AF2（TIM5_CH1），下拉由 key_init() 保留
 tim2cap_init();     // PA5 独立，无顺序依赖；内部自动校准基线，须在无触摸状态下调用
+rng_init();         // 无顺序依赖，须在 sys_clock_init() 后调用（依赖 PLLQ 48MHz）
 // 其他外设初始化无严格顺序...
 ```
