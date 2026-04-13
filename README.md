@@ -89,8 +89,7 @@ stm32f407-reg-dev/
     ├── beep/                     # 蜂鸣器驱动
     ├── key/                      # 按键驱动（轮询）
     ├── exti/                     # 外部中断驱动
-    ├── timer/                    # 通用定时器驱动（TIM3 更新中断 / TIM5 输入捕获 / TIM2 电容按键）
-    ├── pwm/                      # PWM 输出驱动（TIM14）
+    ├── timer/                    # 通用定时器驱动（TIM3 更新中断 / TIM5 输入捕获 / TIM2 电容按键 / TIM14 PWM）
     ├── uart/                     # 串口通信驱动（USART1）
     └── iwdg/                     # 独立看门狗驱动（IWDG）
 ```
@@ -187,7 +186,7 @@ if (exti_key0_flag) {
 
 标志位：`exti_key_up_flag` / `exti_key0_flag` / `exti_key1_flag` / `exti_key2_flag`
 
-### timer — 通用定时器（TIM3 更新中断 + TIM5 输入捕获 + TIM2 电容按键）
+### timer — 通用定时器（TIM3 更新中断 + TIM5 输入捕获 + TIM2 电容按键 + TIM14 PWM）
 
 #### TIM3 — 周期性更新中断
 
@@ -273,7 +272,7 @@ while (1) {
 }
 ```
 
-### pwm — PWM 输出（LED0 亮度控制）
+#### TIM14 — PF9 PWM 输出（LED0 亮度控制）
 
 使用 TIM14_CH1 在 PF9（LED0）上输出硬件 PWM，无需 ISR，直接操作 CCR1 寄存器调节占空比。
 

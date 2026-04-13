@@ -33,4 +33,13 @@ extern volatile uint8_t tim2_cap_state;
 void    tim2cap_init(void);       /* 初始化并校准基线 */
 uint8_t tim2cap_scan(void);       /* 单次检测，返回 1=触摸，0=未触摸 */
 
+/* ---------- TIM14：PF9 PWM 输出（LED0 亮度控制）---------- */
+/*
+ * 使用 TIM14_CH1（PF9，AF9）输出 1kHz 硬件 PWM，控制 LED0 亮度。
+ * PSC=83，ARR=999 → f_PWM = 84MHz / 84 / 1000 = 1kHz
+ * LED0 为低电平点亮，duty=0 熄灭，duty=100 全亮
+ */
+void pwm_init(void);
+void pwm_set_duty(uint8_t duty);   /* duty: 0（灭）~ 100（全亮） */
+
 #endif /* __TIMER_H */

@@ -33,7 +33,6 @@ add_executable(${PROJECT_NAME}
     peripherals/key/key.c
     peripherals/exti/exti.c
     peripherals/timer/timer.c
-    peripherals/pwm/pwm.c
     peripherals/uart/uart.c
     peripherals/iwdg/iwdg.c
     startup/startup_stm32f407xx.s
@@ -48,7 +47,6 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     peripherals/key
     peripherals/exti
     peripherals/timer
-    peripherals/pwm
     peripherals/uart
     peripherals/iwdg
 )
