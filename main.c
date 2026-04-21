@@ -2,11 +2,13 @@
 #include "sys.h"
 #include "delay.h"
 #include "led.h"
+#include "beep.h"
 #include "key.h"
 #include "uart.h"
 #include "timer.h"
 #include "rng.h"
 #include <stdio.h>
+#include <string.h>
 
 /*
  * 功能：
@@ -23,6 +25,9 @@
  *
  *   4. KEY0（PE4）按下 —— 硬件 RNG 产生 0~100 随机数，通过串口发送到 PC
  *
+ *   5. USART1 串口指令 —— 控制 LED1 / BEEP
+ *      格式：led1 on / led1 off / beep on / beep off（行尾 \r\n 或 \n）
+ *
  * 初始化顺序：
  *   key_init()      先配置 PA0 内部下拉（GPIO 输入）
  *   tim5ic_init()   后将 PA0 切换为 AF2（TIM5_CH1），下拉保留
@@ -34,6 +39,7 @@ int main(void)
     sys_clock_init();
     delay_init();
     led_init();
+    beep_init();
     key_init();        /* 配置 PA0 内部下拉，供 tim5ic_init() 依赖 */
     pwm_init();        /* TIM14 PWM → LED0 呼吸灯 */
     uart1_init(115200);
@@ -42,7 +48,8 @@ int main(void)
     rng_init();        /* 硬件 RNG，使用 PLLQ 48MHz 时钟 */
 
     uart1_send_string("=== STM32F407 Ready ===\r\n");
-    uart1_send_string("LED0: breathing | KEY_UP: pulse width | CAP_KEY: LED1 + duration | KEY0: random\r\n");
+    uart1_send_string("LED0: breathing | KEY_UP: pulse width | CAP_KEY: LED1+dur | KEY0: random\r\n");
+    uart1_send_string("CMD: led1 on/off | beep on/off\r\n");
 
     /* ---- 呼吸灯状态 ---- */
     uint8_t  breath_duty = 0;
@@ -56,6 +63,10 @@ int main(void)
 
     /* ---- KEY0 扫描时钟 ---- */
     uint32_t key_scan_tick   = 0;
+
+    /* ---- 串口命令接收缓冲区 ---- */
+    char     cmd_buf[32];
+    uint8_t  cmd_len = 0;
 
     while (1)
     {
@@ -125,6 +136,33 @@ int main(void)
                 char buf[32];
                 snprintf(buf, sizeof(buf), "RNG: %u\r\n", (unsigned)rnd);
                 uart1_send_string(buf);
+            }
+        }
+
+        /* ------------------------------------------------
+         * 5. 串口命令接收：led1 on/off | beep on/off
+         *    以 '\n' 为行终止符，忽略 '\r'
+         * ------------------------------------------------ */
+        {
+            uint8_t byte;
+            while (uart1_recv_byte(&byte))
+            {
+                if (byte == '\r') continue;
+                if (byte == '\n' || cmd_len >= (uint8_t)(sizeof(cmd_buf) - 1))
+                {
+                    cmd_buf[cmd_len] = '\0';
+                    cmd_len = 0;
+
+                    if      (strcmp(cmd_buf, "led1 on")  == 0) { led_on(LED1);  uart1_send_string("LED1 ON\r\n");  }
+                    else if (strcmp(cmd_buf, "led1 off") == 0) { led_off(LED1); uart1_send_string("LED1 OFF\r\n"); }
+                    else if (strcmp(cmd_buf, "beep on")  == 0) { beep_on();     uart1_send_string("BEEP ON\r\n");  }
+                    else if (strcmp(cmd_buf, "beep off") == 0) { beep_off();    uart1_send_string("BEEP OFF\r\n"); }
+                    else if (cmd_buf[0] != '\0')               { uart1_send_string("ERR: unknown cmd\r\n"); }
+                }
+                else
+                {
+                    cmd_buf[cmd_len++] = (char)byte;
+                }
             }
         }
     }
